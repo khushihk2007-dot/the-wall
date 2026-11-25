@@ -1,4 +1,5 @@
 import QRCode from 'qrcode';
+import { apiClient } from './apiClient';
 import { manufacturingService } from './manufacturingService';
 import { qualityService } from './qualityService';
 import { TRACEABILITY_CONFIG } from '../constants/traceabilityConfig';
@@ -75,41 +76,96 @@ export const traceabilityService = {
 
   /**
    * Ensures default QR records are populated for initial batches on first load.
+   * Handles cases where manufacturing batch list API is restricted in production.
    */
   async ensureInitialQrRecords() {
-    const registry = this.getStoredRegistry();
-    const batches = await manufacturingService.getBatches();
+    try {
+      const registry = this.getStoredRegistry();
+      let batches = [];
+      try {
+        batches = await manufacturingService.getBatches();
+      } catch {
+        batches = manufacturingService.getCachedBatches();
+      }
 
-    let modified = false;
+      let modified = false;
 
-    // Automatically provision initial QR records for completed / active batches if missing
-    for (const batch of batches) {
-      if (!registry[batch.id]) {
-        const traceabilityId = this.deriveTraceabilityId(batch.id);
-        const publicUrl = TRACEABILITY_CONFIG.getPublicTraceUrl(traceabilityId);
+      // Automatically provision initial QR records for completed / active batches if missing
+      for (const batch of batches) {
+        if (!registry[batch.id]) {
+          const traceabilityId = this.deriveTraceabilityId(batch.id);
+          const publicUrl = TRACEABILITY_CONFIG.getPublicTraceUrl(traceabilityId);
 
-        try {
-          const { pngDataUrl, svgString } = await this.generateQrAssets(publicUrl);
-          registry[batch.id] = {
-            batchId: batch.id,
-            traceabilityId,
-            publicUrl,
-            qrGeneratedAt: '2026-11-23 11:00',
-            qrDataUrl: pngDataUrl,
-            qrSvg: svgString,
-            status: 'Active',
-          };
-          modified = true;
-        } catch (err) {
-          console.error(`Failed to generate initial QR for ${batch.id}:`, err);
+          try {
+            const { pngDataUrl, svgString } = await this.generateQrAssets(publicUrl);
+            registry[batch.id] = {
+              batchId: batch.id,
+              traceabilityId,
+              publicUrl,
+              qrGeneratedAt: '2026-11-23 11:00',
+              qrDataUrl: pngDataUrl,
+              qrSvg: svgString,
+              status: 'Active',
+            };
+            modified = true;
+          } catch (err) {
+            console.error(`Failed to generate initial QR for ${batch.id}:`, err);
+          }
         }
       }
+
+      if (modified) {
+        this.saveRegistry(registry);
+      }
+      return registry;
+    } catch {
+      return this.getStoredRegistry();
+    }
+  },
+
+  /**
+   * Fetches the official public product passport from the dedicated backend API.
+   * Returns null if the batch/passport does not exist in the database (404).
+   * Falls back gracefully to local demo cache if offline or in preview.
+   */
+  async getPublicPassport(traceabilityId) {
+    if (!traceabilityId) return null;
+    const decodedId = decodeURIComponent(traceabilityId).trim();
+
+    try {
+      const response = await apiClient.get(`/traceability/${encodeURIComponent(decodedId)}`);
+      if (response && response.passport) {
+        const p = response.passport;
+        return {
+          productName: p.productName,
+          brand: p.brand,
+          batchId: p.batchId,
+          traceabilityId: p.traceabilityId,
+          verificationStatus: p.verificationStatus,
+          batch: {
+            id: p.batchId,
+            createdAt: p.manufacturedDate || p.productionDate,
+            quantity: p.quantity,
+            stage: p.stage,
+            status: p.status,
+            materials: p.materials,
+            history: p.history,
+          },
+          qcTest: p.qcTest,
+          hardwareDevice: p.hardwareDevice,
+        };
+      }
+    } catch (err) {
+      const errMsg = err?.message || '';
+      // If server explicitly returned 404 Not Found, return null (record not found)
+      if (errMsg.includes('404')) {
+        return null;
+      }
+      console.warn(`Could not fetch passport from API for ${decodedId}:`, errMsg);
     }
 
-    if (modified) {
-      this.saveRegistry(registry);
-    }
-    return registry;
+    // Fallback: check local synchronous resolver
+    return this.getByTraceabilityId(decodedId);
   },
 
   /**

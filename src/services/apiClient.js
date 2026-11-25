@@ -4,7 +4,7 @@
 const BASE_URL =
   import.meta.env.VITE_API_BASE_URL ||
   import.meta.env.VITE_API_URL ||
-  'http://localhost:5000/api';
+  '/api';
 
 async function handleResponse(response, endpoint) {
   if (!response.ok) {
@@ -12,7 +12,10 @@ async function handleResponse(response, endpoint) {
     try {
       const errorJson = await response.json();
       if (errorJson && (errorJson.error || errorJson.message)) {
-        errorDetail = errorJson.error || errorJson.message;
+        errorDetail =
+          typeof errorJson.error === 'string'
+            ? errorJson.error
+            : errorJson.error?.message || errorJson.message;
       }
     } catch {
       // ignore json parse error

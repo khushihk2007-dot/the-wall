@@ -42,10 +42,17 @@ app.use(notFoundHandler);
 // Centralized error handling middleware
 app.use(errorHandler);
 
-// Start server listening on configured port
+// Start server listening on configured port when executed directly
 const PORT = config.port;
-const server = app.listen(PORT, () => {
-  console.log(`The Wall Backend server is running on http://localhost:${PORT} [${config.nodeEnv}]`);
-});
+let server;
+if (require.main === module) {
+  server = app.listen(PORT, () => {
+    console.log(`The Wall Backend server is running on http://localhost:${PORT} [${config.nodeEnv}]`);
+  });
+}
 
-module.exports = { app, server };
+module.exports = app;
+module.exports.app = app;
+if (server) {
+  module.exports.server = server;
+}

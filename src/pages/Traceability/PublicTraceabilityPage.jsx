@@ -35,14 +35,31 @@ export default function PublicTraceabilityPage() {
   const { traceabilityId } = useParams();
   const [scanTime] = useState(getFormattedScanTime);
   const [profile, setProfile] = useState(() => traceabilityService.getByTraceabilityId(traceabilityId));
-  const [isLoading, setIsLoading] = useState(() => !profile);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    traceabilityService.ensureInitialQrRecords().then(() => {
-      setProfile(traceabilityService.getByTraceabilityId(traceabilityId));
-    }).finally(() => {
-      setIsLoading(false);
-    });
+    let isCurrent = true;
+    traceabilityService
+      .getPublicPassport(traceabilityId)
+      .then((data) => {
+        if (isCurrent) {
+          setProfile(data);
+        }
+      })
+      .catch(() => {
+        if (isCurrent) {
+          setProfile(null);
+        }
+      })
+      .finally(() => {
+        if (isCurrent) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      isCurrent = false;
+    };
   }, [traceabilityId]);
 
   const bioSamples = useMemo(() => {
