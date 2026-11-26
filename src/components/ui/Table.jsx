@@ -27,7 +27,7 @@ export function TableBody({ children, className = '' }) {
   );
 }
 
-export function TableRow({ children, className = '', hover = true }) {
+export function TableRow({ children, className = '', hover = true, ...props }) {
   return (
     <tr
       className={cn(
@@ -35,23 +35,24 @@ export function TableRow({ children, className = '', hover = true }) {
         hover && 'hover:bg-sand-50/60',
         className
       )}
+      {...props}
     >
       {children}
     </tr>
   );
 }
 
-export function TableHead({ children, className = '' }) {
+export function TableHead({ children, className = '', ...props }) {
   return (
-    <th className={cn('px-4 py-3 tracking-wider font-semibold', className)}>
+    <th className={cn('px-4 py-3 tracking-wider font-semibold', className)} {...props}>
       {children}
     </th>
   );
 }
 
-export function TableCell({ children, className = '' }) {
+export function TableCell({ children, className = '', ...props }) {
   return (
-    <td className={cn('px-4 py-3 align-middle text-sand-700', className)}>
+    <td className={cn('px-4 py-3 align-middle text-sand-700', className)} {...props}>
       {children}
     </td>
   );

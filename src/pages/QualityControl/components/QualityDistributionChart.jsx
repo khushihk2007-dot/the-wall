@@ -44,7 +44,7 @@ export function QualityDistributionChart({ tests }) {
   return (
     <Card
       title="Quality Grade Distribution"
-      subtitle="[Demo Data] Categorization based on provisional experimental thresholds (v1.0)"
+      subtitle="Categorization based on provisional experimental thresholds (v1.0)"
       action={
         <Badge variant="forest" size="sm">
           {total} Total Evaluations
@@ -54,7 +54,7 @@ export function QualityDistributionChart({ tests }) {
     >
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-center">
         {/* Recharts Bar Chart */}
-        <div className="lg:col-span-2 h-48 w-full">
+        <div className="lg:col-span-2 h-52 w-full">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={chartData} margin={{ top: 5, right: 15, left: -20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#EAE8DF" vertical={false} />
@@ -84,7 +84,7 @@ export function QualityDistributionChart({ tests }) {
             Standard Breakdown
           </span>
           {chartData.map((item) => (
-            <div key={item.name} className="flex items-center justify-between py-1 border-b border-sand-100 last:border-0">
+            <div key={item.name} className="flex items-center justify-between py-1.5 border-b border-sand-100 last:border-0">
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
                 <div>
@@ -92,7 +92,7 @@ export function QualityDistributionChart({ tests }) {
                   <span className="text-[10px] text-sand-400 block">{item.desc}</span>
                 </div>
               </div>
-              <span className="font-mono font-bold text-sand-900 text-sm">
+              <span className="font-mono font-bold text-sand-900 text-sm bg-sand-50 px-2 py-0.5 rounded border border-sand-200">
                 {item.count}
               </span>
             </div>

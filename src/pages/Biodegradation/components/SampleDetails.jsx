@@ -4,12 +4,14 @@ import {
   Plus, 
   ArrowRightCircle, 
   Edit3, 
-  Clock
+  Clock,
+  Radio
 } from 'lucide-react';
 import { Card } from '../../../components/ui/Card';
 import { Badge } from '../../../components/ui/Badge';
 import { Button } from '../../../components/ui/Button';
 import { ObservationTimeline } from './ObservationTimeline';
+import { useSensorData } from '../../../hooks/useSensorData';
 
 export function SampleDetails({
   sample,
@@ -19,6 +21,7 @@ export function SampleDetails({
   onOpenStatusModal,
   onOpenEditModal,
 }) {
+  const { data: sensorData, isConnected, lastFetchedAt } = useSensorData();
   if (!sample) return null;
 
   const latestObs = observations.length > 0 ? observations[observations.length - 1] : null;
@@ -260,6 +263,70 @@ export function SampleDetails({
               ))}
             </div>
           </Card>
+        </div>
+      </div>
+
+      {/* Environmental Context from Central ESP32 */}
+      <div className="p-4 rounded-xl bg-forest-50/50 border border-forest-200 space-y-3 text-xs">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-forest-900 font-semibold">
+            <Radio className="w-4 h-4 text-forest-700 animate-pulse" />
+            <span>ESP32 Degradation Field Environmental Context</span>
+          </div>
+          <Badge variant={isConnected ? 'success' : 'neutral'} size="xs" dot>
+            {isConnected ? 'Telemetry Active' : 'Sensor Offline'}
+          </Badge>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-[11px] font-mono">
+          <div className="p-2.5 rounded-lg bg-white border border-forest-100">
+            <span className="text-sand-500 block text-[9px] uppercase font-sans">Substrate Moisture</span>
+            <span className="font-bold text-forest-900 text-sm">
+              {sensorData?.soilValid && sensorData?.soilMoisturePercent !== null 
+                ? `${sensorData.soilMoisturePercent}%` 
+                : sensorData?.soilRaw === 0 ? '0/4095 (Zero)' : 'Unavailable'}
+            </span>
+            <span className="text-[9px] text-sand-400 block mt-0.5 font-sans">Capacitive probe</span>
+          </div>
+
+          <div className="p-2.5 rounded-lg bg-white border border-forest-100">
+            <span className="text-sand-500 block text-[9px] uppercase font-sans">Substrate Temp 1</span>
+            <span className="font-bold text-forest-900 text-sm">
+              {sensorData?.dht1Valid && sensorData?.temperature1 != null ? `${sensorData.temperature1}°C` : 'Unavailable'}
+            </span>
+            <span className="text-[9px] text-sand-400 block mt-0.5 font-sans">Core thermal probe</span>
+          </div>
+
+          <div className="p-2.5 rounded-lg bg-white border border-forest-100">
+            <span className="text-sand-500 block text-[9px] uppercase font-sans">Ambient Temp 2</span>
+            <span className="font-bold text-forest-900 text-sm">
+              {sensorData?.dht2Valid && sensorData?.temperature2 != null ? `${sensorData.temperature2}°C` : 'Unavailable'}
+            </span>
+            <span className="text-[9px] text-sand-400 block mt-0.5 font-sans">Air climate sensor</span>
+          </div>
+
+          <div className="p-2.5 rounded-lg bg-white border border-forest-100">
+            <span className="text-sand-500 block text-[9px] uppercase font-sans">Ambient Humidity 2</span>
+            <span className="font-bold text-forest-900 text-sm">
+              {sensorData?.dht2Valid && sensorData?.humidity2 != null ? `${sensorData.humidity2}%` : 'Unavailable'}
+            </span>
+            <span className="text-[9px] text-sand-400 block mt-0.5 font-sans">Relative air humidity</span>
+          </div>
+
+          <div className="p-2.5 rounded-lg bg-white border border-forest-100">
+            <span className="text-sand-500 block text-[9px] uppercase font-sans">Ultrasonic Water</span>
+            <span className="font-bold text-forest-900 text-sm">
+              {sensorData?.ultrasonicValid && sensorData?.ultrasonicDistanceCm != null
+                ? `${sensorData.ultrasonicDistanceCm} cm`
+                : 'Unavailable'}
+            </span>
+            <span className="text-[9px] text-sand-400 block mt-0.5 font-sans">Reservoir distance</span>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between text-[10px] text-sand-500 pt-1 border-t border-forest-100">
+          <span>Physical measurements (mass loss, dry weights) are empirical lab test values.</span>
+          <span>Last sync: {lastFetchedAt || 'Live'}</span>
         </div>
       </div>
 

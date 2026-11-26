@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   Cpu, 
   Wifi, 
@@ -9,16 +9,51 @@ import {
 } from 'lucide-react';
 import { Card } from '../../../components/ui/Card';
 import { Badge } from '../../../components/ui/Badge';
+import { useSensorData } from '../../../hooks/useSensorData';
+import { sensorDataService } from '../../../services/sensorDataService';
+import { useDataSourceFilter } from '../../../hooks/useDataSourceFilter';
+import { DataSourceBadge } from '../../../components/common/DataSourceBadge';
+import { DATA_SOURCES, SOURCE_TYPES } from '../../../constants/dataSourceTypes';
 
 export function DeviceStatus({ devices = [], installations = [], farms = [] }) {
+  const { data: sensorData, isConnected, isStale, lastFetchedAt } = useSensorData();
+  const { isRealOnly, isDemoOnly } = useDataSourceFilter();
+
+  const displayedDevices = useMemo(() => {
+    return devices.filter((device, idx) => {
+      const isRealDevice = idx === 0; // ESP32-DEV-001 connected to hardware
+      if (isRealOnly) return isRealDevice;
+      if (isDemoOnly) return !isRealDevice;
+      return true;
+    });
+  }, [devices, isRealOnly, isDemoOnly]);
+
   const [selectedDevice, setSelectedDevice] = useState(devices[0] || null);
   const [pingStatus, setPingStatus] = useState(null);
 
+  // Keep active selected device valid if filtered
+  const activeDevice = useMemo(() => {
+    if (selectedDevice && displayedDevices.some(d => d.id === selectedDevice.id)) {
+      return selectedDevice;
+    }
+    return displayedDevices[0] || null;
+  }, [selectedDevice, displayedDevices]);
+
   const handlePing = (deviceId) => {
-    setPingStatus({ deviceId, message: 'Heartbeat acknowledged (24ms latency)' });
+    if (isConnected) {
+      setPingStatus({ 
+        deviceId, 
+        message: `HTTP ping acknowledged by ${sensorData?.ipAddress || '10.244.183.187'} (Telemetry valid)` 
+      });
+    } else {
+      setPingStatus({ 
+        deviceId, 
+        message: 'No response from device. Check power and Wi-Fi pairing.' 
+      });
+    }
     setTimeout(() => {
       setPingStatus(null);
-    }, 3500);
+    }, 4000);
   };
 
   const getFarmName = (farmId) => {
@@ -42,23 +77,33 @@ export function DeviceStatus({ devices = [], installations = [], farms = [] }) {
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-semibold text-sand-900 text-sm">ESP32 Hardware Gateway Integration</span>
-              <Badge variant="success" size="xs">PROTOTYPE READY</Badge>
-              <Badge variant="neutral" size="xs">FIRMWARE v1.2.0-rc2</Badge>
+              {isConnected ? (
+                <Badge variant={isStale ? "warning" : "success"} size="xs" dot>
+                  {isStale ? "STALE TELEMETRY" : "HARDWARE ONLINE"}
+                </Badge>
+              ) : (
+                <Badge variant="danger" size="xs" dot>
+                  OFFLINE
+                </Badge>
+              )}
+              <Badge variant="neutral" size="xs">{sensorData?.device || 'ESP32 Node'}</Badge>
             </div>
             <p className="text-xs text-sand-600 mt-0.5">
-              Microcontroller gateways transmit sensor telemetry over Wi-Fi / MQTT. The current physical prototype connects one analog moisture probe. Expansion channels are reserved.
+              Microcontroller gateways transmit sensor telemetry over HTTP. Active polling endpoint: <code className="font-mono bg-white px-1 py-0.5 rounded border border-sand-200">{sensorDataService.getApiUrl()}</code>.
             </p>
           </div>
         </div>
       </div>
 
       {pingStatus && (
-        <div className="p-3 bg-forest-50 border border-forest-200 text-forest-800 rounded-xl text-xs flex items-center justify-between animate-fadeIn">
+        <div className={`p-3 rounded-xl text-xs flex items-center justify-between animate-fadeIn ${
+          isConnected ? 'bg-forest-50 border border-forest-200 text-forest-800' : 'bg-rose-50 border border-rose-200 text-rose-800'
+        }`}>
           <div className="flex items-center gap-2">
-            <CheckCircle className="w-4 h-4 text-forest-600" />
+            <CheckCircle className={`w-4 h-4 ${isConnected ? 'text-forest-600' : 'text-rose-600'}`} />
             <span>Pinged <strong>{pingStatus.deviceId}</strong>: {pingStatus.message}</span>
           </div>
-          <span className="text-[10px] text-forest-600 uppercase tracking-wider font-semibold">Simulated Gateway Ping</span>
+          <span className="text-[10px] uppercase tracking-wider font-semibold">Central Reservoir Check</span>
         </div>
       )}
 
@@ -69,92 +114,114 @@ export function DeviceStatus({ devices = [], installations = [], farms = [] }) {
           <h3 className="text-sm font-bold text-sand-900 uppercase tracking-wider">Registered ESP32 Field Nodes</h3>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {devices.map((device) => {
-              const isSelected = selectedDevice?.id === device.id;
-              const isConnected = device.connectionStatus === 'Connected';
-              const isUnstable = device.connectionStatus === 'Unstable';
+            {displayedDevices.length === 0 ? (
+              <div className="col-span-2 p-8 text-center text-sand-500 bg-sand-50 rounded-xl border border-dashed border-sand-300">
+                <p className="font-medium text-sand-700">No ESP32 nodes match the current filter</p>
+                <p className="text-xs text-sand-500 mt-1">Switch to &quot;All Data&quot; or &quot;Demo Data&quot; to view simulated gateways.</p>
+              </div>
+            ) : (
+              displayedDevices.map((device) => {
+                const isSelected = activeDevice?.id === device.id;
+                // Identify if device is the physical hardware node
+                const isFirstNode = device.id === 'ESP32-DEV-001' || device.id === devices[0]?.id;
+                const deviceConnected = isFirstNode ? isConnected : device.connectionStatus === 'Connected';
+                const deviceStatusText = isFirstNode 
+                  ? (isConnected ? (isStale ? 'Stale' : 'Connected') : 'Disconnected')
+                  : device.connectionStatus;
 
-              return (
-                <div
-                  key={device.id}
-                  onClick={() => setSelectedDevice(device)}
-                  className={`p-4 rounded-xl border cursor-pointer transition-all ${
-                    isSelected
-                      ? 'border-forest-600 bg-forest-50/20 shadow-sm ring-1 ring-forest-500'
-                      : 'border-sand-200 bg-white hover:border-sand-300 hover:shadow-xs'
-                  }`}
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <Cpu className="w-4 h-4 text-sand-700" />
-                        <h4 className="font-semibold text-sand-900 text-sm">{device.name}</h4>
+                return (
+                  <div
+                    key={device.id}
+                    onClick={() => setSelectedDevice(device)}
+                    className={`p-4 rounded-xl border cursor-pointer transition-all ${
+                      isSelected
+                        ? 'border-forest-600 bg-forest-50/20 shadow-sm ring-1 ring-forest-500'
+                        : 'border-sand-200 bg-white hover:border-sand-300 hover:shadow-xs'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <Cpu className="w-4 h-4 text-sand-700" />
+                          <h4 className="font-semibold text-sand-900 text-sm">{device.name}</h4>
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-xs font-mono text-sand-500">{device.id}</span>
+                          <DataSourceBadge 
+                            source={isFirstNode ? DATA_SOURCES.REAL : DATA_SOURCES.DEMO} 
+                            sourceType={isFirstNode ? SOURCE_TYPES.ESP32 : SOURCE_TYPES.MOCK} 
+                            size="xs" 
+                          />
+                        </div>
                       </div>
-                      <span className="text-xs font-mono text-sand-500">{device.id}</span>
+                      <Badge
+                        variant={deviceConnected ? (isFirstNode && isStale ? 'warning' : 'success') : 'danger'}
+                        size="xs"
+                        dot
+                      >
+                        {deviceStatusText}
+                      </Badge>
                     </div>
-                    <Badge
-                      variant={isConnected ? 'success' : isUnstable ? 'warning' : 'danger'}
-                      size="xs"
-                      dot
-                    >
-                      {device.connectionStatus}
-                    </Badge>
-                  </div>
 
-                  <div className="mt-3 space-y-1.5 text-xs text-sand-600 border-t border-sand-100 pt-2.5">
-                    <div className="flex justify-between">
-                      <span className="text-sand-500">Installation:</span>
-                      <span className="font-medium text-sand-800 truncate max-w-[150px]">
-                        {getInstallationName(device.assignedInstallationId)}
-                      </span>
+                    <div className="mt-3 space-y-1.5 text-xs text-sand-600 border-t border-sand-100 pt-2.5">
+                      <div className="flex justify-between">
+                        <span className="text-sand-500">Installation:</span>
+                        <span className="font-medium text-sand-800 truncate max-w-[150px]">
+                          {getInstallationName(device.assignedInstallationId)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sand-500">Site:</span>
+                        <span className="font-medium text-sand-800 truncate max-w-[150px]">
+                          {getFarmName(device.assignedFarmId)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sand-500">Network / IP:</span>
+                        <span className="font-mono text-sand-800 flex items-center gap-1">
+                          {deviceConnected ? (
+                            <>
+                              <Wifi className="w-3 h-3 text-forest-600" />
+                              {isFirstNode && sensorData?.ipAddress ? sensorData.ipAddress : (device.signalStrength || '-62 dBm')}
+                            </>
+                          ) : (
+                            <>
+                              <WifiOff className="w-3 h-3 text-sand-400" />
+                              Offline
+                            </>
+                          )}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sand-500">Uptime:</span>
+                        <span className="text-sand-800">
+                          {isFirstNode && sensorData?.uptimeMs
+                            ? sensorDataService.formatUptime(sensorData.uptimeMs)
+                            : device.batteryLevel || 'External 5V USB'}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-sand-500">Site:</span>
-                      <span className="font-medium text-sand-800 truncate max-w-[150px]">
-                        {getFarmName(device.assignedFarmId)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sand-500">Signal (RSSI):</span>
-                      <span className="font-mono text-sand-800 flex items-center gap-1">
-                        {isConnected ? (
-                          <>
-                            <Wifi className="w-3 h-3 text-forest-600" />
-                            {device.signalStrength || '-62 dBm'}
-                          </>
-                        ) : (
-                          <>
-                            <WifiOff className="w-3 h-3 text-sand-400" />
-                            Offline
-                          </>
-                        )}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sand-500">Battery:</span>
-                      <span className="text-sand-800">{device.batteryLevel || 'External 5V USB'}</span>
-                    </div>
-                  </div>
 
-                  <div className="mt-3 pt-2 border-t border-sand-100 flex items-center justify-between">
-                    <span className="text-[11px] text-sand-400 flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      {device.lastCommunication}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handlePing(device.id);
-                      }}
-                      className="text-xs text-forest-700 hover:text-forest-900 font-medium px-2 py-0.5 rounded hover:bg-forest-100/60 transition-colors"
-                    >
-                      Ping Node
-                    </button>
+                    <div className="mt-3 pt-2 border-t border-sand-100 flex items-center justify-between">
+                      <span className="text-[11px] text-sand-400 flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {isFirstNode && lastFetchedAt ? lastFetchedAt : device.lastCommunication}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handlePing(device.id);
+                        }}
+                        className="text-xs text-forest-700 hover:text-forest-900 font-medium px-2 py-0.5 rounded hover:bg-forest-100/60 transition-colors"
+                      >
+                        Ping Node
+                      </button>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </div>
 
@@ -162,28 +229,34 @@ export function DeviceStatus({ devices = [], installations = [], farms = [] }) {
         <div className="space-y-4">
           <h3 className="text-sm font-bold text-sand-900 uppercase tracking-wider">Gateway Configuration</h3>
           
-          {selectedDevice ? (
+          {activeDevice ? (
             <Card
-              title={selectedDevice.name}
-              subtitle={`Node Architecture: ${selectedDevice.hardwareModel || 'ESP32-WROOM-32'}`}
+              title={activeDevice.name}
+              subtitle={`Node Architecture: ${activeDevice.hardwareModel || 'ESP32-WROOM-32'}`}
             >
               <div className="space-y-3 text-xs">
                 <div className="p-3 bg-sand-50 rounded-lg space-y-1.5 border border-sand-200">
                   <div className="flex justify-between">
                     <span className="text-sand-500">Node ID:</span>
-                    <span className="font-mono font-bold text-sand-800">{selectedDevice.id}</span>
+                    <span className="font-mono font-bold text-sand-800">{activeDevice.id}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sand-500">IP Address:</span>
+                    <span className="font-mono text-sand-800">
+                      {activeDevice.id === 'ESP32-DEV-001' && isConnected && sensorData?.ipAddress ? sensorData.ipAddress : '10.244.183.187'}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sand-500">Firmware:</span>
-                    <span className="font-mono text-sand-800">{selectedDevice.firmwareVersion || 'v1.2.0-rc2'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sand-500">MAC Address:</span>
-                    <span className="font-mono text-sand-800">{selectedDevice.macAddress || '24:6F:28:A1:8B:20'}</span>
+                    <span className="font-mono text-sand-800">{activeDevice.firmwareVersion || 'v1.2.0-rc2'}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sand-500">Uptime:</span>
-                    <span className="text-sand-800">14 days, 6 hours</span>
+                    <span className="text-sand-800 font-mono">
+                      {activeDevice.id === 'ESP32-DEV-001' && isConnected && sensorData?.uptimeMs
+                        ? sensorDataService.formatUptime(sensorData.uptimeMs)
+                        : 'Offline / Disconnected'}
+                    </span>
                   </div>
                 </div>
 

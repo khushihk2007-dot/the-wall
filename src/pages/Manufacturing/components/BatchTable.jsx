@@ -5,9 +5,12 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '.
 import { Badge } from '../../../components/ui/Badge';
 import { Button } from '../../../components/ui/Button';
 import { BatchWorkflowStepper } from './BatchWorkflowStepper';
+import { DataSourceBadge } from '../../../components/common/DataSourceBadge';
+import { useDataSourceFilter } from '../../../hooks/useDataSourceFilter';
 import { MANUFACTURING_STAGES } from '../../../constants/mockManufacturingData';
 
 export function BatchTable({ batches, onSelectBatch, onAdvanceBatch }) {
+  const { classify } = useDataSourceFilter();
   const [searchTerm, setSearchTerm] = useState('');
   const [stageFilter, setStageFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -83,6 +86,7 @@ export function BatchTable({ batches, onSelectBatch, onAdvanceBatch }) {
           <TableHeader>
             <TableRow hover={false}>
               <TableHead>Batch ID</TableHead>
+              <TableHead>Origin</TableHead>
               <TableHead>Output Beds</TableHead>
               <TableHead>Raw Materials</TableHead>
               <TableHead>Workflow Stage</TableHead>
@@ -104,6 +108,11 @@ export function BatchTable({ batches, onSelectBatch, onAdvanceBatch }) {
                     <span className="text-[10px] text-sand-500 truncate max-w-[140px] block">
                       {batch.notes || 'No remarks'}
                     </span>
+                  </TableCell>
+
+                  {/* Origin */}
+                  <TableCell>
+                    <DataSourceBadge source={classify(batch, 'batch')} size="xs" />
                   </TableCell>
 
                   {/* Quantity */}

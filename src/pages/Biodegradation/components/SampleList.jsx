@@ -10,6 +10,8 @@ import { Card } from '../../../components/ui/Card';
 import { Badge } from '../../../components/ui/Badge';
 import { Button } from '../../../components/ui/Button';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../../components/ui/Table';
+import { DataSourceBadge } from '../../../components/common/DataSourceBadge';
+import { useDataSourceFilter } from '../../../hooks/useDataSourceFilter';
 import { biodegradationService } from '../../../services/biodegradationService';
 import { OBSERVATION_ENVIRONMENTS, OBSERVATION_STATUSES } from '../../../constants/mockBiodegradationData';
 
@@ -18,6 +20,7 @@ export function SampleList({
   onSelectSample,
   onOpenRegisterModal,
 }) {
+  const { classify } = useDataSourceFilter();
   const [searchTerm, setSearchTerm] = useState('');
   const [envFilter, setEnvFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -148,9 +151,13 @@ export function SampleList({
       {filteredSamples.length === 0 ? (
         <div className="p-12 text-center text-sand-500">
           <FlaskConical className="w-10 h-10 mx-auto mb-2 text-sand-300" />
-          <p className="font-semibold text-sand-800">No Biodegradation Samples Found</p>
-          <p className="text-xs text-sand-500 mt-1">
-            Try adjusting your search query or filters, or register a new sample.
+          <p className="font-semibold text-sand-800">
+            {samples.length === 0 ? 'No biodegradation specimens recorded yet' : 'No Biodegradation Samples Found'}
+          </p>
+          <p className="text-xs text-sand-500 mt-1 max-w-sm mx-auto">
+            {samples.length === 0 
+              ? 'No physical decomposition samples or laboratory soil coupons are currently logged in Supabase. Register a new specimen above to record baseline Day 0 mass.'
+              : 'Try adjusting your search query or filters, or register a new sample.'}
           </p>
         </div>
       ) : (
@@ -159,6 +166,7 @@ export function SampleList({
             <TableHeader>
               <TableRow>
                 <TableHead>Sample Details</TableHead>
+                <TableHead>Origin</TableHead>
                 <TableHead>Batch Linkage</TableHead>
                 <TableHead>Environment &amp; Site</TableHead>
                 <TableHead>Initial Mass</TableHead>
@@ -194,6 +202,10 @@ export function SampleList({
                           </span>
                         </div>
                       </div>
+                    </TableCell>
+
+                    <TableCell>
+                      <DataSourceBadge source={classify(sample, 'bio_sample')} size="xs" />
                     </TableCell>
 
                     <TableCell>

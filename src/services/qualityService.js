@@ -1,16 +1,23 @@
 import { INITIAL_QC_TESTS } from '../constants/mockQualityData';
 import { manufacturingService } from './manufacturingService';
 import { gradingService } from './gradingService';
-import { QUALITY_CRITERIA_METADATA } from '../constants/qualityCriteria';
+import { criteriaService } from './criteriaService';
 
-const STORAGE_KEY = 'thewall_qc_records_v1';
+const STORAGE_KEY = 'thewall_qc_records_v2';
 
 export const qualityService = {
   getTests() {
     try {
+      // Clean up legacy v1 key if present
+      localStorage.removeItem('thewall_qc_records_v1');
+
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
-        return JSON.parse(stored);
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Keep at most 4 beds
+          return parsed.slice(0, 4);
+        }
       }
     } catch {
       // fallback to initial
@@ -35,24 +42,41 @@ export const qualityService = {
     return INITIAL_QC_TESTS;
   },
 
+  /**
+   * Returns list of available manufacturing batches and their current tested beds
+   */
   getAvailableBatches(batchesOverride) {
     const batches = batchesOverride || manufacturingService.getCachedBatches();
     const tests = this.getTests();
 
-    // Map which batches currently have active (non-finalized) QC tests
-    const activeTestBatchIds = new Set(
-      tests
-        .filter((t) => t.status === 'Pending' || t.status === 'In Progress' || t.status === 'Awaiting Review')
-        .map((t) => t.batchId)
-    );
+    // Map which batches have active or completed tests
+    const batchMap = new Map();
+    tests.forEach((t) => {
+      if (!batchMap.has(t.batchId)) {
+        batchMap.set(t.batchId, []);
+      }
+      batchMap.get(t.batchId).push(t);
+    });
 
-    return batches.map((b) => ({
-      ...b,
-      hasActiveQc: activeTestBatchIds.has(b.id),
-    }));
+    return batches.map((b) => {
+      const batchTests = batchMap.get(b.id) || [];
+      const hasActive = batchTests.some(
+        (t) => t.status === 'Pending' || t.status === 'In Progress' || t.status === 'Awaiting Review'
+      );
+      return {
+        ...b,
+        hasActiveQc: hasActive,
+        testedBedsCount: batchTests.length,
+        testedBeds: batchTests.map((t) => t.bedId || 'Sample Bed'),
+      };
+    });
   },
 
-  createTest({ batchId, sampleQuantity, testDate, reviewer, notes }) {
+  /**
+   * Creates an independent test record for an individual bed from a batch.
+   * Multiple beds from the same batch can be tested independently.
+   */
+  createTest({ batchId, bedId, sampleQuantity, testDate, reviewer, notes }) {
     const batches = manufacturingService.getCachedBatches();
     const batch = batches.find((b) => b.id === batchId);
 
@@ -61,14 +85,20 @@ export const qualityService = {
     }
 
     const tests = this.getTests();
-    const hasActive = tests.some(
-      (t) => t.batchId === batchId && (t.status === 'Pending' || t.status === 'In Progress' || t.status === 'Awaiting Review')
-    );
+    const existingForBatch = tests.filter((t) => t.batchId === batchId);
+    
+    // Auto-generate bedId if not provided (e.g. BED-01, BED-02, etc.)
+    const assignedBedId = bedId && bedId.trim()
+      ? bedId.trim()
+      : `BED-${String(existingForBatch.length + 1).padStart(2, '0')}`;
 
-    if (hasActive) {
-      throw new Error(`Batch ${batchId} already has an active QC test in progress.`);
+    // Verify this specific bedId doesn't already exist for this batch
+    const duplicateBed = existingForBatch.find((t) => t.bedId?.toUpperCase() === assignedBedId.toUpperCase());
+    if (duplicateBed) {
+      throw new Error(`Bed ${assignedBedId} for batch ${batchId} already has a test record (${duplicateBed.id}). Each bed must have a distinct Sample ID.`);
     }
 
+    const activeCriteria = criteriaService.getActiveCriteria();
     const nextNum = tests.length + 1;
     const testId = `QC-2026-${String(nextNum).padStart(3, '0')}`;
     const dateStr = testDate || new Date().toISOString().split('T')[0];
@@ -76,15 +106,17 @@ export const qualityService = {
     const newTest = {
       id: testId,
       batchId,
+      bedId: assignedBedId,
       testDate: dateStr,
-      sampleQuantity: Number(sampleQuantity) || 3,
+      sampleQuantity: Number(sampleQuantity) || 1,
       status: 'Pending',
       grade: 'Insufficient Test Data',
       reviewer: reviewer || 'Unassigned',
-      reviewerNotes: notes || 'New laboratory QC requisition logged.',
-      criteriaVersion: QUALITY_CRITERIA_METADATA.version,
+      reviewerNotes: notes || `Requisition logged for Bed ${assignedBedId} from Batch ${batchId}.`,
+      criteriaVersion: activeCriteria.version,
       evaluationDate: null,
       measurements: null,
+      testResults: {},
       cropSuitability: gradingService.evaluateCropSuitability(null, 'Insufficient Test Data'),
       history: [
         {
@@ -98,7 +130,7 @@ export const qualityService = {
             minute: '2-digit',
           }),
           user: reviewer || 'QC Tech',
-          note: `Requisition created for ${sampleQuantity || 3} sample beds from ${batchId}.`,
+          note: `Independent test requisition initialized for Bed ${assignedBedId} (Batch: ${batchId}). Criteria: ${activeCriteria.version}.`,
         },
       ],
     };
@@ -108,6 +140,9 @@ export const qualityService = {
     return { test: newTest, all: updated };
   },
 
+  /**
+   * Updates laboratory physical measurements for an individual bed and calculates grades.
+   */
   updateMeasurements(testId, rawData, reviewerNotes) {
     const tests = this.getTests();
     const index = tests.findIndex((t) => t.id === testId);
@@ -118,31 +153,35 @@ export const qualityService = {
 
     const test = tests[index];
     if (test.status === 'Approved') {
-      throw new Error('Approved QC records are locked and cannot be edited.');
+      throw new Error('Approved QC records are permanently certified and cannot be edited.');
     }
 
-    // Calculate all 5 suites
+    // 1. Water Absorption calculation
     const absorptionCalc = gradingService.calculateAbsorption(
       rawData.dryWeight,
       rawData.wetWeight
     );
 
+    // 2. Water Retention calculation
     const retentionCalc = gradingService.calculateRetention(
       rawData.waterAbsorbed,
       rawData.waterRetained
     );
 
+    // 3. Moisture Distribution calculation (variation %)
     const moistureCalc = gradingService.calculateMoistureDistribution(
       rawData.topLayerMoisture,
       rawData.midLayerMoisture,
       rawData.bottomLayerMoisture
     );
 
+    // 4. Structural Stability calculation (% deformation under load)
     const stabilityCalc = gradingService.calculateDeformation(
       rawData.initialThickness,
       rawData.finalThickness
     );
 
+    // 5. Drying Behaviour calculation (% weight loss over target duration)
     const dryingCalc = gradingService.calculateDryingWeightLoss(
       rawData.dryingInitialWet,
       rawData.dryingFinalWeight
@@ -170,6 +209,8 @@ export const qualityService = {
         bottomLayer: Number(rawData.bottomLayerMoisture) || 0,
         average: moistureCalc.average,
         spread: moistureCalc.spread,
+        variationPct: moistureCalc.variationPct,
+        value: moistureCalc.value,
         isValid: moistureCalc.isValid,
         error: moistureCalc.error,
       },
@@ -177,6 +218,7 @@ export const qualityService = {
         initialThickness: Number(rawData.initialThickness) || 0,
         finalThickness: Number(rawData.finalThickness) || 0,
         compressionForceN: Number(rawData.compressionForce) || 450,
+        durationHours: Number(rawData.loadDurationHours) || 24,
         observations: rawData.structuralObservations || '',
         value: stabilityCalc.value,
         isValid: stabilityCalc.isValid,
@@ -194,9 +236,16 @@ export const qualityService = {
       },
     };
 
-    // Evaluate grade and suitability
-    const evaluation = gradingService.evaluateBatchGrade(computedMeasurements);
-    const suitability = gradingService.evaluateCropSuitability(computedMeasurements, evaluation.grade);
+    // Evaluate grade using the criteria version preserved on the test (or fallback to active)
+    const evaluation = gradingService.evaluateBedGrade(
+      computedMeasurements,
+      test.criteriaVersion
+    );
+
+    const suitability = gradingService.evaluateCropSuitability(
+      computedMeasurements,
+      evaluation.grade
+    );
 
     // Auto-advance status to In Progress if currently Pending
     let nextStatus = test.status;
@@ -218,6 +267,7 @@ export const qualityService = {
         minute: '2-digit',
       }),
       measurements: computedMeasurements,
+      testResults: evaluation.testResults || {},
       cropSuitability: suitability,
       reviewerNotes: reviewerNotes !== undefined ? reviewerNotes : test.reviewerNotes,
     };
@@ -237,13 +287,16 @@ export const qualityService = {
 
     const test = tests[index];
 
-    // Validation: Cannot approve incomplete test
+    // Validation: Cannot approve incomplete or failed test
     if (newStatus === 'Approved') {
       if (test.grade === 'Insufficient Test Data' || !test.measurements) {
         throw new Error('Cannot approve a test with "Insufficient Test Data". Complete all 5 physical suites first.');
       }
       if (test.grade === 'Failed') {
-        throw new Error('Cannot approve a test that evaluated to "Failed". Reject or re-test the batch.');
+        throw new Error('Cannot approve a test that evaluated to "Failed". Reject the lot or re-test an independent sample bed.');
+      }
+      if (test.grade === 'Criteria Not Configured') {
+        throw new Error('Cannot approve a test when grading criteria is unvalidated or awaiting experimental calibration.');
       }
     }
 

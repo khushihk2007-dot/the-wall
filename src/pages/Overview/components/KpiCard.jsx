@@ -1,6 +1,8 @@
 import React from 'react';
 import { Layers, CheckCircle2, Sprout, Radio, ArrowUpRight, Minus } from 'lucide-react';
 import { Card } from '../../../components/ui/Card';
+import { DataSourceBadge } from '../../../components/common/DataSourceBadge';
+import { DATA_SOURCES } from '../../../constants/dataSourceTypes';
 
 const iconMap = {
   Layers,
@@ -9,17 +11,20 @@ const iconMap = {
   Radio,
 };
 
-export function KpiCard({ title, value, unit, iconName, changeLabel, trend }) {
+export function KpiCard({ title, value, unit, iconName, changeLabel, trend, dataSource = DATA_SOURCES.DEMO }) {
   const Icon = iconMap[iconName] || Layers;
 
   return (
     <Card className="hover:border-forest-600/40 transition-all">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-1">
         <span className="text-xs font-semibold uppercase tracking-wider text-sand-500">
           {title}
         </span>
-        <div className="w-8 h-8 rounded-lg bg-sand-100 flex items-center justify-center text-forest-700">
-          <Icon className="w-4 h-4" />
+        <div className="flex items-center gap-1.5">
+          {dataSource && <DataSourceBadge source={dataSource} size="xs" />}
+          <div className="w-7 h-7 rounded-lg bg-sand-100 flex items-center justify-center text-forest-700 shrink-0">
+            <Icon className="w-3.5 h-3.5" />
+          </div>
         </div>
       </div>
 

@@ -4,8 +4,11 @@ import { Card } from '../../../components/ui/Card';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../../components/ui/Table';
 import { Badge } from '../../../components/ui/Badge';
 import { Button } from '../../../components/ui/Button';
+import { DataSourceBadge } from '../../../components/common/DataSourceBadge';
+import { useDataSourceFilter } from '../../../hooks/useDataSourceFilter';
 
 export function TraceabilityTable({ records, onSelectRecord, onGenerateQr }) {
+  const { classify } = useDataSourceFilter();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterMode, setFilterMode] = useState('ALL');
 
@@ -86,6 +89,7 @@ export function TraceabilityTable({ records, onSelectRecord, onGenerateQr }) {
           <TableHeader>
             <TableRow hover={false}>
               <TableHead>Batch & Trace ID</TableHead>
+              <TableHead>Origin</TableHead>
               <TableHead>Production Date</TableHead>
               <TableHead>Quantity</TableHead>
               <TableHead>Quality Status</TableHead>
@@ -110,6 +114,11 @@ export function TraceabilityTable({ records, onSelectRecord, onGenerateQr }) {
                       Unassigned Trace ID
                     </span>
                   )}
+                </TableCell>
+
+                {/* Origin */}
+                <TableCell>
+                  <DataSourceBadge source={classify({ id: item.batchId }, 'batch')} size="xs" />
                 </TableCell>
 
                 {/* Date */}

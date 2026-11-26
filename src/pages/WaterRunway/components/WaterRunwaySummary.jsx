@@ -37,8 +37,8 @@ export function WaterRunwaySummary({
         {/* Big Runway Metric Indicator */}
         <div className="p-6 rounded-2xl bg-gradient-to-br from-sand-50 to-sand-100/70 border border-sand-200 text-center flex flex-col items-center justify-center relative overflow-hidden">
           <div className="flex items-center gap-2 mb-2 text-sand-500 text-xs font-semibold uppercase tracking-wider">
-            <Hourglass className="w-4 h-4 text-forest-700 animate-spin-slow" />
-            <span>Projected Water Runway</span>
+            <Hourglass className="w-4 h-4 text-forest-700" />
+            <span>PROJECTED WATER RUNWAY</span>
           </div>
 
           {!isCalibrated ? (
@@ -66,7 +66,7 @@ export function WaterRunwaySummary({
                   {runwayDays}
                 </span>
                 <span className="text-lg font-bold text-forest-700 uppercase tracking-wide">
-                  Days
+                  DAYS
                 </span>
               </div>
               <p className="text-xs text-sand-600 mt-2 font-medium">

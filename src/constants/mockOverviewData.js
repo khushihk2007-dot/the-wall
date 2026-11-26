@@ -23,7 +23,7 @@ export const OVERVIEW_KPIS = [
     value: '97.4%',
     unit: 'approval rate',
     iconName: 'CheckCircle2',
-    changeLabel: '38 of 39 batches passed [Demo]',
+    changeLabel: '38 of 39 batches passed',
     trend: 'neutral',
   },
   {

@@ -9,8 +9,14 @@ import {
   FileCheck,
   Send,
   Lock,
+  Layers,
+  Droplets,
+  Activity,
+  Weight,
+  Wind,
+  ShieldCheck,
 } from 'lucide-react';
-import { QUALITY_CRITERIA_METADATA } from '../../../constants/qualityCriteria';
+import { criteriaService } from '../../../services/criteriaService';
 
 export function GradingPanel({ test, onTransitionStatus }) {
   const [reviewNote, setReviewNote] = useState('');
@@ -18,8 +24,12 @@ export function GradingPanel({ test, onTransitionStatus }) {
 
   const isApproved = test.status === 'Approved';
   const isRejected = test.status === 'Rejected';
-  const isComplete = test.grade !== 'Insufficient Test Data';
+  const isComplete = test.grade !== 'Insufficient Test Data' && test.grade !== 'Criteria Not Configured';
   const canApprove = isComplete && test.grade !== 'Failed' && !isApproved;
+
+  const criteria = criteriaService.getCriteriaByVersion(test.criteriaVersion);
+  const cTests = criteria?.tests || {};
+  const tr = test.testResults || {};
 
   const handleAction = (status) => {
     onTransitionStatus(test.id, status, test.reviewer || 'Dr. K. Patel', reviewNote);
@@ -33,36 +43,43 @@ export function GradingPanel({ test, onTransitionStatus }) {
         return {
           variant: 'forest',
           title: 'Grade A — Premium Quality',
-          desc: 'All critical physical baseline metrics and premium structural criteria are satisfied.',
+          desc: 'All five standardized physical tests meet Grade A premium criteria.',
           icon: CheckCircle2,
         };
       case 'Grade B':
         return {
           variant: 'earth',
-          title: 'Grade B — Acceptable Standard',
-          desc: 'Meets all mandatory minimum physical thresholds with minor performance limitations.',
+          title: 'Grade B — Good Quality',
+          desc: 'All five tests meet at least Grade B standard criteria, with minor performance limitations.',
           icon: CheckCircle2,
         };
       case 'Grade C':
         return {
           variant: 'warning',
-          title: 'Grade C — Low Quality',
-          desc: 'Fails at least one critical minimum requirement. Usable only for non-critical applications.',
+          title: 'Grade C — Basic Quality',
+          desc: 'At least one test falls to Grade C usability criteria with no critical failure. Usable for non-critical crop stages.',
           icon: AlertTriangle,
         };
       case 'Failed':
         return {
           variant: 'danger',
-          title: 'Failed — Rejected Lot',
-          desc: 'Critical structural or moisture requirements failed. Batch cannot be released.',
+          title: 'Failed — Critical Rejection',
+          desc: 'A critical structural, safety, or usability condition is violated. Critical failure cannot be compensated by other results.',
           icon: XCircle,
+        };
+      case 'Criteria Not Configured':
+        return {
+          variant: 'warning',
+          title: 'Criteria Not Configured',
+          desc: 'Active grading criteria is awaiting experimental validation by authorized agricultural standards committee.',
+          icon: AlertTriangle,
         };
       case 'Insufficient Test Data':
       default:
         return {
           variant: 'neutral',
           title: 'Insufficient Test Data',
-          desc: 'One or more required physical laboratory suites have not been completed.',
+          desc: 'One or more required physical laboratory suites have not been completed for this growing bed.',
           icon: HelpCircle,
         };
     }
@@ -71,19 +88,85 @@ export function GradingPanel({ test, onTransitionStatus }) {
   const gradeInfo = getGradeDisplay(test.grade);
   const GradeIcon = gradeInfo.icon;
 
+  const testCards = [
+    {
+      key: 'absorption',
+      name: '1. Water Absorption',
+      icon: Droplets,
+      color: 'text-blue-600',
+      formula: '((Wet - Dry) / Dry) × 100',
+      unit: '%',
+      res: tr.absorption,
+      cfg: cTests.absorption,
+    },
+    {
+      key: 'retention',
+      name: '2. Water Retention',
+      icon: Activity,
+      color: 'text-teal-600',
+      formula: '(Retained / Absorbed) × 100',
+      unit: '%',
+      res: tr.retention,
+      cfg: cTests.retention,
+    },
+    {
+      key: 'moistureDist',
+      name: '3. Moisture Distribution',
+      icon: Layers,
+      color: 'text-indigo-600',
+      formula: '((Max - Min) / Avg) × 100',
+      unit: '% variation',
+      res: tr.moistureDist,
+      cfg: cTests.moistureDist,
+    },
+    {
+      key: 'stability',
+      name: '4. Structural Stability',
+      icon: Weight,
+      color: 'text-amber-700',
+      formula: '((Initial - Final) / Initial) × 100',
+      unit: '% deformation',
+      res: tr.stability,
+      cfg: cTests.stability,
+    },
+    {
+      key: 'drying',
+      name: '5. Drying Behaviour',
+      icon: Wind,
+      color: 'text-orange-600',
+      formula: '((Initial - Final) / Initial) × 100',
+      unit: '% weight loss',
+      res: tr.drying,
+      cfg: cTests.drying,
+    },
+  ];
+
   return (
     <div className="space-y-6 text-xs">
-      {/* Criteria Metadata Disclaimer */}
-      <div className="p-3 rounded-lg bg-amber-50/70 border border-amber-200 text-amber-900 flex items-start gap-2.5">
-        <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-        <div className="space-y-0.5">
-          <div className="flex items-center gap-2">
-            <span className="font-bold">Evaluation Engine: {test.criteriaVersion || QUALITY_CRITERIA_METADATA.version}</span>
-            <Badge variant="warning" size="sm">EXPERIMENTAL / PROVISIONAL</Badge>
-          </div>
-          <p className="text-[11px] leading-relaxed text-amber-800">
-            {QUALITY_CRITERIA_METADATA.note} Physical grades are calculated against experimental bench targets.
-          </p>
+      {/* Bed & Criteria Header */}
+      <div className="p-3.5 rounded-xl bg-sand-100/70 border border-sand-200 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className="font-mono text-xs font-bold text-sand-500 uppercase">Tested Bed:</span>
+          <span className="font-mono font-bold text-sm text-forest-900 bg-white px-2.5 py-0.5 rounded border border-sand-300">
+            {test.bedId || 'BED-01'}
+          </span>
+          <span className="text-sand-600 font-medium">
+            (Batch: <strong className="font-mono text-sand-900">{test.batchId}</strong>)
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] text-sand-500">Grading Version:</span>
+          <Badge variant="forest" size="xs">
+            {test.criteriaVersion || criteria?.version || '1.0-VALIDATED'}
+          </Badge>
+          <Badge
+            variant={criteria?.isValidated ? 'success' : 'warning'}
+            size="xs"
+            dot
+          >
+            {criteria?.validationStatus || 'Validated'}
+          </Badge>
         </div>
       </div>
 
@@ -110,11 +193,74 @@ export function GradingPanel({ test, onTransitionStatus }) {
           {test.evaluationSummary || gradeInfo.desc}
         </p>
 
-        {/* Reasons Breakdown */}
+        {/* 5-Test Results Grid Breakdown */}
+        <div className="space-y-2 pt-2">
+          <span className="font-bold text-sand-800 block text-xs">
+            Individual Bed Test Breakdown (5 Standardized Tests):
+          </span>
+
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-2.5">
+            {testCards.map((tc) => {
+              const Icon = tc.icon;
+              const hasResult = tc.res && tc.res.value !== null && tc.res.value !== undefined;
+              const isCrit = tc.res?.isCriticalFail || tc.res?.grade === 'Failed';
+              const grade = tc.res?.grade || '—';
+
+              return (
+                <div
+                  key={tc.key}
+                  className={`p-3 rounded-xl border ${
+                    isCrit
+                      ? 'border-rose-300 bg-rose-50/40'
+                      : grade === 'Grade A'
+                      ? 'border-forest-200 bg-forest-50/20'
+                      : grade === 'Grade B'
+                      ? 'border-sand-300 bg-sand-50/50'
+                      : 'border-sand-200 bg-white'
+                  } space-y-2 flex flex-col justify-between`}
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <Icon className={`w-3.5 h-3.5 ${tc.color}`} />
+                      {hasResult ? (
+                        <span
+                          className={`font-mono font-bold text-[10px] px-1.5 py-0.2 rounded ${
+                            isCrit
+                              ? 'bg-rose-200 text-rose-900'
+                              : grade === 'Grade A'
+                              ? 'bg-forest-100 text-forest-800'
+                              : grade === 'Grade B'
+                              ? 'bg-earth-100 text-earth-800'
+                              : 'bg-amber-100 text-amber-800'
+                          }`}
+                        >
+                          {grade}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-sand-400">Missing</span>
+                      )}
+                    </div>
+                    <h5 className="font-bold text-[11px] text-sand-900 leading-tight">{tc.name}</h5>
+                    <div className="font-mono text-[9px] text-sand-500 break-words">{tc.formula}</div>
+                  </div>
+
+                  <div className="pt-2 border-t border-sand-200/60">
+                    <span className="text-[9px] text-sand-400 uppercase font-semibold block">Measured Value</span>
+                    <span className="font-mono font-bold text-sm text-sand-900">
+                      {hasResult ? `${tc.res.value} ${tc.unit}` : '—'}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Detailed Reasons Breakdown */}
         {test.evaluationReasons && test.evaluationReasons.length > 0 && (
-          <div className="space-y-1.5 pt-2">
-            <span className="font-bold text-sand-800 block">
-              Parameter Evaluation Breakdown:
+          <div className="space-y-1.5 pt-2 border-t border-sand-200">
+            <span className="font-bold text-sand-800 block text-xs">
+              Evaluation Criteria Details:
             </span>
             <ul className="space-y-1 text-sand-600 pl-4 list-disc">
               {test.evaluationReasons.map((r, idx) => (
@@ -130,12 +276,12 @@ export function GradingPanel({ test, onTransitionStatus }) {
         <div className="flex items-center justify-between">
           <div>
             <span className="text-[10px] font-bold uppercase tracking-wider text-sand-500">
-              Current Workflow State
+              Current Certification Workflow State
             </span>
             <div className="flex items-center gap-2 mt-0.5">
               <span className="text-sm font-bold text-sand-900">{test.status}</span>
-              {isApproved && <Badge variant="success" size="sm" dot>Permanently Certified</Badge>}
-              {isRejected && <Badge variant="danger" size="sm" dot>Batch Rejected</Badge>}
+              {isApproved && <Badge variant="success" size="sm" dot>Certified Bed</Badge>}
+              {isRejected && <Badge variant="danger" size="sm" dot>Lot Rejected</Badge>}
             </div>
           </div>
 
@@ -148,86 +294,56 @@ export function GradingPanel({ test, onTransitionStatus }) {
         {/* Approval / Rejection Action Controls */}
         {!isApproved && !isRejected && (
           <div className="pt-3 border-t border-sand-200 space-y-3">
-            {actionConfirm ? (
-              <div className="p-3 rounded-lg bg-white border border-sand-300 space-y-2">
-                <p className="font-bold text-sand-900">
-                  Confirm {actionConfirm === 'Approved' ? 'Batch Quality Approval' : 'Batch Quality Rejection'}
+            <div className="flex items-center justify-between">
+              <span className="font-medium text-sand-700">Audit Actions:</span>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setActionConfirm('Reject')}
+                  className="text-rose-700 border-rose-300 hover:bg-rose-50"
+                >
+                  Reject Bed Lot
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  icon={ShieldCheck}
+                  disabled={!canApprove}
+                  onClick={() => setActionConfirm('Approve')}
+                  title={!canApprove ? 'All 5 tests must be completed and passing to approve' : 'Certify this bed'}
+                >
+                  Certify & Approve Bed
+                </Button>
+              </div>
+            </div>
+
+            {actionConfirm && (
+              <div className="p-3 rounded-lg bg-white border border-sand-300 space-y-2 animate-in fade-in">
+                <p className="font-semibold text-sand-800">
+                  Confirm transition to <span className="font-bold underline">{actionConfirm}</span>?
                 </p>
-                <input
-                  type="text"
+                <textarea
+                  rows={2}
                   value={reviewNote}
                   onChange={(e) => setReviewNote(e.target.value)}
-                  placeholder={`Enter required ${actionConfirm.toLowerCase()} rationale / QA signature remarks...`}
-                  className="w-full px-3 py-1.5 rounded-lg border border-sand-300 text-xs focus:outline-none focus:ring-2 focus:ring-forest-600"
+                  placeholder="Optional review sign-off notes for quality audit trail..."
+                  className="w-full p-2 rounded border border-sand-300 text-xs text-sand-900"
                 />
                 <div className="flex justify-end gap-2">
-                  <Button size="sm" variant="outline" onClick={() => setActionConfirm(null)}>
+                  <Button variant="ghost" size="xs" onClick={() => setActionConfirm(null)}>
                     Cancel
                   </Button>
                   <Button
-                    size="sm"
-                    variant={actionConfirm === 'Approved' ? 'primary' : 'danger'}
-                    onClick={() => handleAction(actionConfirm)}
+                    variant={actionConfirm === 'Approve' ? 'primary' : 'danger'}
+                    size="xs"
+                    onClick={() => handleAction(actionConfirm === 'Approve' ? 'Approved' : 'Rejected')}
                   >
                     Confirm {actionConfirm}
                   </Button>
                 </div>
               </div>
-            ) : (
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                {test.status !== 'Awaiting Review' ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    icon={Send}
-                    onClick={() => onTransitionStatus(test.id, 'Awaiting Review', test.reviewer, 'Submitted for final QA approval.')}
-                  >
-                    Submit for Final Review
-                  </Button>
-                ) : (
-                  <span className="text-sand-500 font-medium">
-                    Test dossier queued for supervisor review.
-                  </span>
-                )}
-
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    icon={XCircle}
-                    onClick={() => setActionConfirm('Rejected')}
-                  >
-                    Reject Batch
-                  </Button>
-
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    icon={FileCheck}
-                    disabled={!canApprove}
-                    title={
-                      !isComplete
-                        ? 'Cannot approve: All 5 physical tests must be completed.'
-                        : test.grade === 'Failed'
-                        ? 'Cannot approve: Quality evaluation evaluated to Failed.'
-                        : 'Certify and approve this QC record'
-                    }
-                    onClick={() => setActionConfirm('Approved')}
-                  >
-                    Certify & Approve
-                  </Button>
-                </div>
-              </div>
             )}
-          </div>
-        )}
-
-        {isApproved && (
-          <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 flex items-center gap-2">
-            <Lock className="w-4 h-4 text-emerald-700 shrink-0" />
-            <span>
-              Certified by <strong>{test.reviewer}</strong> on {test.evaluationDate}. Batch is approved for agricultural distribution and QR generation.
-            </span>
           </div>
         )}
       </div>

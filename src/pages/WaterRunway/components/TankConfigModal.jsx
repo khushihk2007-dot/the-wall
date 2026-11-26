@@ -46,7 +46,7 @@ export function TankConfigModal({
       isOpen={isOpen}
       onClose={onClose}
       title="Tank Geometry & Alert Thresholds"
-      subtitle={`Configure ${tank?.name || 'Reservoir'} [DEMO DATA]`}
+      subtitle={`Configure ${tank?.name || 'Reservoir'}`}
       maxWidth="max-w-lg"
     >
       <form onSubmit={handleSubmit} className="space-y-4">

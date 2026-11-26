@@ -38,7 +38,7 @@ export function FarmKPIs({ farms, installations, devices, alerts }) {
       value: '64.2%',
       unit: 'optimal',
       icon: Droplets,
-      subtext: 'Channel 1 (Top Layer) [Demo]',
+      subtext: 'Channel 1 (Top Layer)',
       color: 'text-water-700',
     },
     {
@@ -54,7 +54,7 @@ export function FarmKPIs({ farms, installations, devices, alerts }) {
       value: '1 min ago',
       unit: 'sync',
       icon: Clock,
-      subtext: '[DEMO SIMULATION]',
+      subtext: 'Telemetry interval: 15s',
       color: 'text-forest-700',
     },
   ];

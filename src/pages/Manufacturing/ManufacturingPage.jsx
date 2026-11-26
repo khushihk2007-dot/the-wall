@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
@@ -10,11 +10,20 @@ import { CreateBatchModal } from './components/CreateBatchModal';
 import { BatchDetailsModal } from './components/BatchDetailsModal';
 
 import { manufacturingService } from '../../services/manufacturingService';
+import { DataSourceFilter } from '../../components/common/DataSourceFilter';
+import { useDataSourceFilter } from '../../hooks/useDataSourceFilter';
+import { DATA_SOURCES, SOURCE_TYPES } from '../../constants/dataSourceTypes';
 
 export default function ManufacturingPage() {
+  const { filterRecords } = useDataSourceFilter();
   const [batches, setBatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  const displayedBatches = useMemo(
+    () => filterRecords(batches, 'batch'),
+    [batches, filterRecords]
+  );
 
   const [selectedBatch, setSelectedBatch] = useState(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -52,7 +61,13 @@ export default function ManufacturingPage() {
   const handleCreateBatch = async (data) => {
     try {
       setIsCreating(true);
-      const { batch, all } = await manufacturingService.createBatch(data);
+      const batchPayload = {
+        ...data,
+        isUserCreated: true,
+        dataSource: DATA_SOURCES.REAL,
+        sourceType: SOURCE_TYPES.DATABASE,
+      };
+      const { batch, all } = await manufacturingService.createBatch(batchPayload);
       setBatches(all);
       setIsCreateOpen(false);
       showToast(`Batch ${batch.id} initialized and stored in database.`);
@@ -117,7 +132,8 @@ export default function ManufacturingPage() {
           </div>
         }
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <DataSourceFilter size="sm" />
             <Button
               variant="outline"
               size="sm"
@@ -178,11 +194,11 @@ export default function ManufacturingPage() {
       ) : (
         <>
           {/* 1. Manufacturing Overview KPI cards */}
-          <ManufacturingKpis batches={batches} />
+          <ManufacturingKpis batches={displayedBatches} />
 
           {/* 2. Production Batch Table */}
           <BatchTable
-            batches={batches}
+            batches={displayedBatches}
             onSelectBatch={(batch) => setSelectedBatch(batch)}
             onAdvanceBatch={(batchId) => handleAdvanceBatch(batchId)}
           />

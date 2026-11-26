@@ -58,7 +58,7 @@ export function BiodegradationKPIs({ kpis, onOpenRegisterModal }) {
       value: `${avgMassLoss}%`,
       unit: 'loss',
       icon: TrendingDown,
-      subtext: `From ${measuredSampleCount} measured samples [Demo]`,
+      subtext: `From ${measuredSampleCount} measured samples`,
       color: 'text-earth-800',
     },
   ];

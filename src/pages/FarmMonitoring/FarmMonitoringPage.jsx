@@ -2,10 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { 
   Activity, 
   Layers, 
-  Sprout, 
   Cpu, 
-  Sliders, 
-  Bell, 
   RotateCcw, 
   CheckCircle2 
 } from 'lucide-react';
@@ -13,20 +10,17 @@ import { PageHeader } from '../../components/common/PageHeader';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { farmService } from '../../services/farmService';
+import { useSensorData } from '../../hooks/useSensorData';
+import { DataSourceFilter } from '../../components/common/DataSourceFilter';
 
-import { FarmList } from './components/FarmList';
-import { FarmFormModal } from './components/FarmFormModal';
 import { InstallationList } from './components/InstallationList';
 import { InstallationModal } from './components/InstallationModal';
 import { SensorOverview } from './components/SensorOverview';
 import { SensorCharts } from './components/SensorCharts';
 import { DeviceStatus } from './components/DeviceStatus';
-import { CompactDeviceStatus } from './components/CompactDeviceStatus';
-import { ThresholdSettings } from './components/ThresholdSettings';
-import { CalibrationPanel } from './components/CalibrationPanel';
-import { FarmAlerts } from './components/FarmAlerts';
 
 export default function FarmMonitoringPage() {
+  const { isConnected, isStale, lastFetchedAt } = useSensorData();
   const [farms, setFarms] = useState(() => farmService.getFarms());
   const [installations, setInstallations] = useState(() => farmService.getInstallations());
   const [devices, setDevices] = useState(() => farmService.getDevices());
@@ -42,8 +36,6 @@ export default function FarmMonitoringPage() {
   );
 
   // Modals state
-  const [isFarmModalOpen, setIsFarmModalOpen] = useState(false);
-  const [editingFarm, setEditingFarm] = useState(null);
   const [isInstModalOpen, setIsInstModalOpen] = useState(false);
   const [editingInst, setEditingInst] = useState(null);
   const [noticeMessage, setNoticeMessage] = useState(null);
@@ -69,29 +61,6 @@ export default function FarmMonitoringPage() {
     if (!selectedInstallation) return null;
     return farms.find((f) => f.id === selectedInstallation.farmId);
   }, [selectedInstallation, farms]);
-
-  // Handlers for Farms
-  const handleOpenCreateFarm = () => {
-    setEditingFarm(null);
-    setIsFarmModalOpen(true);
-  };
-
-  const handleEditFarm = (farm) => {
-    setEditingFarm(farm);
-    setIsFarmModalOpen(true);
-  };
-
-  const handleSaveFarm = (data) => {
-    if (editingFarm) {
-      const res = farmService.updateFarm(editingFarm.id, data);
-      setFarms(res.all);
-      showNotice(`Farm ${res.farm.name} updated successfully.`);
-    } else {
-      const res = farmService.createFarm(data);
-      setFarms(res.all);
-      showNotice(`New farm ${res.farm.name} registered.`);
-    }
-  };
 
   // Handlers for Installations
   const handleOpenCreateInst = () => {
@@ -134,15 +103,10 @@ export default function FarmMonitoringPage() {
     }
   };
 
-  const activeAlertsCount = alerts.filter((a) => a.status === 'Active').length;
-
   const tabs = [
     { id: 'telemetry', label: 'Live Telemetry & Trends', icon: Activity },
     { id: 'installations', label: 'Bed Deployments', icon: Layers, count: installations.length },
-    { id: 'farms', label: 'Farms & Sites', icon: Sprout, count: farms.length },
     { id: 'devices', label: 'ESP32 Gateways', icon: Cpu, count: devices.length },
-    { id: 'thresholds', label: 'Thresholds & Calibration', icon: Sliders },
-    { id: 'alerts', label: 'Field Alerts', icon: Bell, count: activeAlertsCount, isAlert: activeAlertsCount > 0 },
   ];
 
   return (
@@ -152,9 +116,16 @@ export default function FarmMonitoringPage() {
         title="Smart Farm Monitoring"
         description="Multi-zone growing-bed telemetry, microclimate trends, ESP32 gateway health, and post-deployment farm operations."
         breadcrumbs={['The Wall', 'Smart Farm Monitoring']}
-        badge={<Badge variant="success" size="sm" dot>Telemetry Active</Badge>}
+        badge={
+          <div className="flex items-center gap-1.5">
+            <Badge variant={isConnected ? (isStale ? "warning" : "success") : "danger"} size="sm" dot>
+              {isConnected ? (isStale ? `Stale (${lastFetchedAt || 'Check node'})` : "ESP32 Online") : "ESP32 Offline"}
+            </Badge>
+          </div>
+        }
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <DataSourceFilter size="sm" />
             <Button
               variant="outline"
               size="sm"
@@ -177,52 +148,6 @@ export default function FarmMonitoringPage() {
           </div>
         </div>
       )}
-
-      {/* Target Bed Selector & Compact Device Status Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
-        {/* Active Bed Target Selector */}
-        <div className="bg-white border border-sand-200 rounded-xl p-3.5 shadow-xs flex flex-col justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-forest-100 flex items-center justify-center text-forest-800 shrink-0">
-              <Layers className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="text-xs font-semibold text-sand-900">Active Bed Target</div>
-              <div className="text-[11px] text-sand-500">
-                Site: <span className="font-medium text-sand-800">{currentFarm?.name || 'Local Farm'}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2.5">
-            <label htmlFor="bed-selector" className="text-xs font-medium text-sand-600 whitespace-nowrap">
-              Select Bed:
-            </label>
-            <select
-              id="bed-selector"
-              value={selectedInstallationId}
-              onChange={(e) => setSelectedInstallationId(e.target.value)}
-              className="w-full text-xs font-medium py-1.5 px-3 rounded-lg border border-sand-300 bg-sand-50/50 text-sand-900 focus:outline-none focus:ring-2 focus:ring-forest-600 focus:border-forest-600"
-            >
-              {installations.map((inst) => {
-                const farm = farms.find((f) => f.id === inst.farmId);
-                return (
-                  <option key={inst.id} value={inst.id}>
-                    {inst.id} — {inst.cropType} ({farm ? farm.name : 'Farm'}) [{inst.deviceId || 'No Gateway'}]
-                  </option>
-                );
-              })}
-            </select>
-          </div>
-        </div>
-
-        {/* Compact Device Status Card */}
-        <CompactDeviceStatus
-          device={selectedDevice}
-          snapshot={liveSnapshot}
-          installation={selectedInstallation}
-        />
-      </div>
 
       {/* Sub-navigation Tabs */}
       <div className="border-b border-sand-200">
@@ -291,21 +216,6 @@ export default function FarmMonitoringPage() {
           />
         )}
 
-        {activeTab === 'farms' && (
-          <FarmList
-            farms={farms}
-            installations={installations}
-            onSelectFarm={(farm) => {
-              // Find first installation of this farm
-              const firstInst = installations.find((i) => i.farmId === farm.id);
-              if (firstInst) setSelectedInstallationId(firstInst.id);
-              setActiveTab('telemetry');
-            }}
-            onEditFarm={handleEditFarm}
-            onOpenCreateFarm={handleOpenCreateFarm}
-          />
-        )}
-
         {activeTab === 'devices' && (
           <DeviceStatus
             devices={devices}
@@ -313,41 +223,7 @@ export default function FarmMonitoringPage() {
             farms={farms}
           />
         )}
-
-        {activeTab === 'thresholds' && (
-          <div className="space-y-6">
-            <ThresholdSettings />
-            <CalibrationPanel
-              calibrations={calibrations}
-              onCalibrationAdded={(newCal) => {
-                setCalibrations((prev) => [newCal, ...prev]);
-                showNotice(`Calibration entry ${newCal.id} logged.`);
-              }}
-            />
-          </div>
-        )}
-
-        {activeTab === 'alerts' && (
-          <FarmAlerts
-            alerts={alerts}
-            onAlertUpdated={(updatedList) => {
-              setAlerts(updatedList);
-              showNotice('Alert status updated.');
-            }}
-          />
-        )}
       </div>
-
-      {/* Farm Form Modal */}
-      {isFarmModalOpen && (
-        <FarmFormModal
-          key={editingFarm?.id || 'new-farm'}
-          isOpen={isFarmModalOpen}
-          onClose={() => setIsFarmModalOpen(false)}
-          onSave={handleSaveFarm}
-          farm={editingFarm}
-        />
-      )}
 
       {/* Installation Modal */}
       {isInstModalOpen && (

@@ -76,7 +76,8 @@ export const traceabilityService = {
 
   /**
    * Ensures default QR records are populated for initial batches on first load.
-   * Handles cases where manufacturing batch list API is restricted in production.
+   * Also automatically regenerates any existing QR records that were generated
+   * on localhost/127.0.0.1 so they use the canonical production URL.
    */
   async ensureInitialQrRecords() {
     try {
@@ -90,26 +91,38 @@ export const traceabilityService = {
 
       let modified = false;
 
-      // Automatically provision initial QR records for completed / active batches if missing
       for (const batch of batches) {
-        if (!registry[batch.id]) {
-          const traceabilityId = this.deriveTraceabilityId(batch.id);
-          const publicUrl = TRACEABILITY_CONFIG.getPublicTraceUrl(traceabilityId);
+        const existing = registry[batch.id];
+        const traceabilityId = existing?.traceabilityId || this.deriveTraceabilityId(batch.id);
+        const expectedPublicUrl = TRACEABILITY_CONFIG.getPublicTraceUrl(traceabilityId);
 
+        const hasLocalhostUrl = existing?.publicUrl && 
+          (existing.publicUrl.includes('localhost') || existing.publicUrl.includes('127.0.0.1'));
+        const isUrlMismatched = existing && existing.publicUrl !== expectedPublicUrl;
+
+        // Provision missing records or regenerate stale localhost/mismatched URLs
+        if (!existing || hasLocalhostUrl || isUrlMismatched) {
           try {
-            const { pngDataUrl, svgString } = await this.generateQrAssets(publicUrl);
+            const { pngDataUrl, svgString } = await this.generateQrAssets(expectedPublicUrl);
             registry[batch.id] = {
+              ...(existing || {}),
               batchId: batch.id,
               traceabilityId,
-              publicUrl,
-              qrGeneratedAt: '2026-11-23 11:00',
+              publicUrl: expectedPublicUrl,
+              qrGeneratedAt: existing?.qrGeneratedAt || new Date().toLocaleString('en-GB', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+              }),
               qrDataUrl: pngDataUrl,
               qrSvg: svgString,
               status: 'Active',
             };
             modified = true;
           } catch (err) {
-            console.error(`Failed to generate initial QR for ${batch.id}:`, err);
+            console.error(`Failed to generate/update QR for ${batch.id}:`, err);
           }
         }
       }
@@ -170,6 +183,7 @@ export const traceabilityService = {
 
   /**
    * Returns merged traceability status for all manufacturing batches.
+   * Ensures publicUrl always reflects the active production base URL.
    */
   getAllBatchesTraceability() {
     const batches = manufacturingService.getCachedBatches();
@@ -180,6 +194,8 @@ export const traceabilityService = {
       const qrRecord = registry[batch.id] || null;
       const qcTest = tests.find((t) => t.batchId === batch.id) || null;
       const verificationStatus = this.calculateVerificationStatus(batch, qcTest);
+      const traceabilityId = qrRecord ? qrRecord.traceabilityId : this.deriveTraceabilityId(batch.id);
+      const canonicalPublicUrl = TRACEABILITY_CONFIG.getPublicTraceUrl(traceabilityId);
 
       return {
         batch,
@@ -191,10 +207,13 @@ export const traceabilityService = {
         qcTest,
         qualityStatus: qcTest ? qcTest.status : 'Not Tested',
         qualityGrade: qcTest ? qcTest.grade : '—',
-        qrRecord,
+        qrRecord: qrRecord ? {
+          ...qrRecord,
+          publicUrl: canonicalPublicUrl,
+        } : null,
         hasQr: !!qrRecord,
-        traceabilityId: qrRecord ? qrRecord.traceabilityId : null,
-        publicUrl: qrRecord ? qrRecord.publicUrl : null,
+        traceabilityId,
+        publicUrl: canonicalPublicUrl,
         verificationStatus,
       };
     });

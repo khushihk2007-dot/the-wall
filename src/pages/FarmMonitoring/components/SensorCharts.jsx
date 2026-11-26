@@ -19,9 +19,13 @@ import {
 } from 'lucide-react';
 import { Card } from '../../../components/ui/Card';
 import { Badge } from '../../../components/ui/Badge';
+import { DataSourceBadge } from '../../../components/common/DataSourceBadge';
+import { useDataSourceFilter } from '../../../hooks/useDataSourceFilter';
+import { DATA_SOURCES, SOURCE_TYPES } from '../../../constants/dataSourceTypes';
 import { farmService } from '../../../services/farmService';
 
 export function SensorCharts({ installation, device }) {
+  const { isRealOnly } = useDataSourceFilter();
   const [timeFilter, setTimeFilter] = useState('24h');
   const [activeMetric, setActiveMetric] = useState('all');
 
@@ -48,6 +52,24 @@ export function SensorCharts({ installation, device }) {
     { id: 'distance', label: 'Water Distance', icon: Ruler },
   ];
 
+  if (isRealOnly) {
+    return (
+      <Card
+        title="Historical Sensor Analytics"
+        subtitle="Time-series trends and microclimate metrics."
+        action={<DataSourceBadge source={DATA_SOURCES.UNAVAILABLE} size="sm" />}
+      >
+        <div className="p-12 text-center text-sand-500 bg-sand-50/50 rounded-xl border border-dashed border-sand-300">
+          <Info className="w-10 h-10 mx-auto mb-3 text-sand-400" />
+          <h4 className="font-semibold text-sand-800 text-base">Physical Telemetry History Inactive</h4>
+          <p className="text-sm text-sand-600 max-w-md mx-auto mt-1">
+            Real time-series database logging has not been initiated for this bed. Live hardware readings are streamed in real time above.
+          </p>
+        </div>
+      </Card>
+    );
+  }
+
   if (!hasDevice) {
     return (
       <Card title="Historical Sensor Analytics" subtitle="Time-series trends and microclimate metrics.">
@@ -68,6 +90,7 @@ export function SensorCharts({ installation, device }) {
       subtitle="Continuous environmental logging. Reflects Channel 1 single-probe prototype measurements."
       action={
         <div className="flex flex-wrap items-center gap-2">
+          <DataSourceBadge source={DATA_SOURCES.DEMO} sourceType={SOURCE_TYPES.MOCK} size="xs" />
           {/* Time Filter Buttons */}
           <div className="inline-flex rounded-lg border border-sand-300 bg-white p-0.5">
             {timeOptions.map((opt) => (

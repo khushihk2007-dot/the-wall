@@ -10,6 +10,10 @@ import {
 import { PageHeader } from '../../components/common/PageHeader';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
+import { useSensorData } from '../../hooks/useSensorData';
+import { useDataSourceFilter } from '../../hooks/useDataSourceFilter';
+import { DataSourceFilter } from '../../components/common/DataSourceFilter';
+import { DATA_SOURCES, SOURCE_TYPES } from '../../constants/dataSourceTypes';
 import { waterService } from '../../services/waterService';
 import { farmService } from '../../services/farmService';
 
@@ -20,6 +24,8 @@ import { RecordUsageModal } from './components/RecordUsageModal';
 import { TankConfigModal } from './components/TankConfigModal';
 
 export default function WaterRunwayPage() {
+  const sensorState = useSensorData();
+  const { filterRecords } = useDataSourceFilter();
   const [tanks, setTanks] = useState(() => waterService.getTanks());
   const [usageRecords, setUsageRecords] = useState(() => waterService.getUsageRecords());
   const [selectedTankId, setSelectedTankId] = useState(() => {
@@ -72,12 +78,18 @@ export default function WaterRunwayPage() {
         statusMessage: '',
       };
     }
-    return waterService.calculateTankMetrics(selectedTank, selectedTankUsage);
-  }, [selectedTank, selectedTankUsage]);
+    return waterService.calculateTankMetrics(selectedTank, selectedTankUsage, sensorState);
+  }, [selectedTank, selectedTankUsage, sensorState]);
 
   // Handlers
   const handleSaveUsage = (data) => {
-    const res = waterService.addUsageRecord(data);
+    const payload = {
+      ...data,
+      isUserCreated: true,
+      dataSource: DATA_SOURCES.REAL,
+      sourceType: SOURCE_TYPES.MANUAL_ENTRY,
+    };
+    const res = waterService.addUsageRecord(payload);
     setUsageRecords(res.all);
     showNotice(`Recorded ${data.amountLitres} L for ${data.purpose}.`);
   };
@@ -113,9 +125,11 @@ export default function WaterRunwayPage() {
         title="Water Runway"
         description="Monitor reservoir storage, track manual water usage, and calculate estimated remaining days of water supply."
         breadcrumbs={['The Wall', 'Water Runway']}
-        badge={<Badge variant="forest" size="sm" dot>Water Management v1.0</Badge>}
+        badge={
+          <Badge variant="forest" size="sm" dot>Water Management v1.0</Badge>
+        }
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
               size="sm"

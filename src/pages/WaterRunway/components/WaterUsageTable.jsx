@@ -7,11 +7,14 @@ import {
 import { Card } from '../../../components/ui/Card';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../../components/ui/Table';
 import { Badge } from '../../../components/ui/Badge';
+import { DataSourceBadge } from '../../../components/common/DataSourceBadge';
+import { useDataSourceFilter } from '../../../hooks/useDataSourceFilter';
 
 export function WaterUsageTable({
   usageRecords = [],
   totalUsageLitres = 0,
 }) {
+  const { classify } = useDataSourceFilter();
   const formatDateTime = (timestamp) => {
     try {
       const date = new Date(timestamp);
@@ -31,7 +34,7 @@ export function WaterUsageTable({
   return (
     <Card
       title="Recent Water Usage History"
-      subtitle="Manual consumption logs recorded for this reservoir [DEMO DATA]"
+      subtitle="Manual consumption logs recorded for this reservoir"
       action={
         <div className="flex items-center gap-2">
           <Badge variant="forest" size="sm">
@@ -55,6 +58,7 @@ export function WaterUsageTable({
             <TableHeader>
               <TableRow>
                 <TableHead>Date &amp; Time</TableHead>
+                <TableHead>Origin</TableHead>
                 <TableHead>Amount Used</TableHead>
                 <TableHead>Purpose</TableHead>
                 <TableHead>Farm &amp; Installation</TableHead>
@@ -71,6 +75,9 @@ export function WaterUsageTable({
                     <span className="text-[10px] font-mono text-sand-400 block mt-0.5">
                       {record.id}
                     </span>
+                  </TableCell>
+                  <TableCell>
+                    <DataSourceBadge source={classify(record, 'water_usage')} size="xs" />
                   </TableCell>
 
                   <TableCell>

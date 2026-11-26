@@ -13,18 +13,20 @@ export const TRACEABILITY_CONFIG = {
   /**
    * Resolves the public base URL dynamically.
    * Priority:
-   * 1. import.meta.env.VITE_PUBLIC_APP_URL
-   * 2. window.location.origin
-   * 3. fallback 'http://localhost:5173'
+   * 1. import.meta.env.VITE_PUBLIC_APP_URL (Configurable production domain in Vercel)
+   * 2. window.location.origin (Actual deployed application origin at runtime)
+   * 3. Fallback production placeholder
    */
   getBaseUrl() {
     if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_PUBLIC_APP_URL) {
-      return import.meta.env.VITE_PUBLIC_APP_URL.replace(/\/$/, '');
+      const envUrl = import.meta.env.VITE_PUBLIC_APP_URL.trim().replace(/\/$/, '');
+      if (envUrl) return envUrl;
     }
     if (typeof window !== 'undefined' && window.location?.origin) {
-      return window.location.origin.replace(/\/$/, '');
+      const origin = window.location.origin.trim().replace(/\/$/, '');
+      if (origin) return origin;
     }
-    return 'http://localhost:5173';
+    return 'https://the-wall.vercel.app';
   },
 
   getPublicTraceUrl(traceabilityId) {

@@ -9,6 +9,9 @@ import { PageHeader } from '../../components/common/PageHeader';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { biodegradationService } from '../../services/biodegradationService';
+import { DataSourceFilter } from '../../components/common/DataSourceFilter';
+import { useDataSourceFilter } from '../../hooks/useDataSourceFilter';
+import { DATA_SOURCES, SOURCE_TYPES } from '../../constants/dataSourceTypes';
 
 import { SampleList } from './components/SampleList';
 import { SampleFormModal } from './components/SampleFormModal';
@@ -18,9 +21,12 @@ import { ObservationFormModal } from './components/ObservationFormModal';
 import { BiodegradationCharts } from './components/BiodegradationCharts';
 
 export default function BiodegradationPage() {
+  const { filterRecords } = useDataSourceFilter();
   const [samples, setSamples] = useState(() => biodegradationService.getSamples());
   const [observations, setObservations] = useState(() => biodegradationService.getAllObservations());
   const [activeTab, setActiveTab] = useState('samples');
+
+  const displayedSamples = useMemo(() => filterRecords(samples, 'bio_sample'), [samples, filterRecords]);
 
   // Currently focused sample for details view
   const [selectedSampleId, setSelectedSampleId] = useState(null);
@@ -69,7 +75,13 @@ export default function BiodegradationPage() {
       setSamples(res.all);
       showNotice(`Specimen ${res.sample.id} updated.`);
     } else {
-      const res = biodegradationService.createSample(data);
+      const payload = {
+        ...data,
+        isUserCreated: true,
+        dataSource: DATA_SOURCES.REAL,
+        sourceType: SOURCE_TYPES.MANUAL_ENTRY,
+      };
+      const res = biodegradationService.createSample(payload);
       setSamples(res.all);
       // Refresh observations as baseline observation was automatically generated
       setObservations(biodegradationService.getAllObservations());
@@ -127,7 +139,8 @@ export default function BiodegradationPage() {
         breadcrumbs={['The Wall', 'Biodegradation']}
         badge={<Badge variant="forest" size="sm" dot>Empirical Research v1.0</Badge>}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <DataSourceFilter size="sm" />
             <Button
               variant="outline"
               size="sm"
@@ -207,7 +220,7 @@ export default function BiodegradationPage() {
               />
             ) : (
               <SampleList
-                samples={samples}
+                samples={displayedSamples}
                 onSelectSample={(sample) => setSelectedSampleId(sample.id)}
                 onOpenRegisterModal={handleOpenCreateSample}
               />
@@ -218,7 +231,7 @@ export default function BiodegradationPage() {
         {/* TAB 2: CHARTS & ANALYTICS */}
         {activeTab === 'analytics' && (
           <BiodegradationCharts
-            samples={samples}
+            samples={displayedSamples}
             observations={observations}
           />
         )}

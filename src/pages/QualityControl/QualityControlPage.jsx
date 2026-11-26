@@ -5,20 +5,29 @@ import { Button } from '../../components/ui/Button';
 import { Plus, RotateCcw, Check } from 'lucide-react';
 
 import { QualityKPIs } from './components/QualityKPIs';
+import { GradingCriteriaSection } from './components/GradingCriteriaSection';
 import { QualityDistributionChart } from './components/QualityDistributionChart';
 import { QualityTestTable } from './components/QualityTestTable';
 import { CreateTestModal } from './components/CreateTestModal';
 import { TestDetailsModal } from './components/TestDetailsModal';
 
 import { qualityService } from '../../services/qualityService';
+import { criteriaService } from '../../services/criteriaService';
 import { manufacturingService } from '../../services/manufacturingService';
+import { DataSourceFilter } from '../../components/common/DataSourceFilter';
+import { useDataSourceFilter } from '../../hooks/useDataSourceFilter';
+import { DATA_SOURCES, SOURCE_TYPES } from '../../constants/dataSourceTypes';
 
 export default function QualityControlPage() {
+  const { filterRecords } = useDataSourceFilter();
   const [tests, setTests] = useState(() => qualityService.getTests());
+  const [activeCriteria, setActiveCriteria] = useState(() => criteriaService.getActiveCriteria());
   const [selectedTest, setSelectedTest] = useState(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
   const [batchesList, setBatchesList] = useState(() => manufacturingService.getCachedBatches());
+
+  const displayedTests = useMemo(() => filterRecords(tests, 'qc'), [tests, filterRecords]);
 
   useEffect(() => {
     manufacturingService.getBatches().then((data) => setBatchesList(data)).catch(() => {});
@@ -26,7 +35,6 @@ export default function QualityControlPage() {
 
   // Batches for selection in test creation
   const batches = useMemo(() => {
-    // Re-evaluates available batches when tests change
     if (!tests) return [];
     return qualityService.getAvailableBatches(batchesList);
   }, [tests, batchesList]);
@@ -46,10 +54,16 @@ export default function QualityControlPage() {
   };
 
   const handleCreateTest = (data) => {
-    const { test, all } = qualityService.createTest(data);
+    const payload = {
+      ...data,
+      isUserCreated: true,
+      dataSource: DATA_SOURCES.REAL,
+      sourceType: SOURCE_TYPES.MANUAL_ENTRY,
+    };
+    const { test, all } = qualityService.createTest(payload);
     setTests(all);
     setSelectedTest(test);
-    showToast(`QC Test requisition ${test.id} initialized for batch ${data.batchId}.`);
+    showToast(`QC Test record ${test.id} created for Bed ${data.bedId} (Batch: ${data.batchId}).`);
   };
 
   const handleSaveMeasurements = (testId, rawData, notes) => {
@@ -74,12 +88,24 @@ export default function QualityControlPage() {
     }
   };
 
+  const handleSaveCriteria = (newCriteria) => {
+    const { criteria } = criteriaService.saveCriteria(newCriteria, true);
+    setActiveCriteria(criteria);
+    showToast(`Grading criteria version ${criteria.version} thresholds saved.`);
+  };
+
+  const handleResetCriteria = () => {
+    const def = criteriaService.resetToDefault();
+    setActiveCriteria(def);
+    showToast('Grading criteria thresholds reset to baseline validated standards.');
+  };
+
   const handleResetDemo = () => {
     if (window.confirm('Reset all QC records back to initial demonstration state?')) {
       const initial = qualityService.resetToDefault();
       setTests(initial);
       setSelectedTest(null);
-      showToast('Quality Control records reset to default demo dataset.');
+      showToast('Quality Control records reset to default test dataset.');
     }
   };
 
@@ -96,20 +122,18 @@ export default function QualityControlPage() {
       {/* Page Header */}
       <PageHeader
         title="Quality Control & Testing"
-        description="Standardized laboratory physical testing, automated grading evaluation, and agronomic crop suitability verification."
+        description="Standardized laboratory physical testing, automated threshold grading evaluation, and agronomic crop suitability verification for CocoPit growing beds."
         breadcrumbs={['The Wall', 'Quality Control']}
         badge={
           <div className="flex items-center gap-1.5">
             <Badge variant="forest" size="sm">
               Module 03
             </Badge>
-            <span className="text-[11px] font-mono text-sand-500 bg-sand-100 px-2 py-0.5 rounded">
-              Demo Data
-            </span>
           </div>
         }
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <DataSourceFilter size="sm" />
             <Button
               variant="outline"
               size="sm"
@@ -117,7 +141,7 @@ export default function QualityControlPage() {
               onClick={handleResetDemo}
               title="Reset demonstration records"
             >
-              Reset
+              Reset Records
             </Button>
             <Button
               variant="primary"
@@ -125,25 +149,32 @@ export default function QualityControlPage() {
               icon={Plus}
               onClick={() => setIsCreateOpen(true)}
             >
-              New QC Test
+              New Bed Test
             </Button>
           </div>
         }
       />
 
       {/* 1. Dynamic KPIs */}
-      <QualityKPIs tests={tests} />
+      <QualityKPIs tests={displayedTests} />
 
-      {/* 2. Recharts Grade Distribution */}
-      <QualityDistributionChart tests={tests} />
+      {/* 2. Grading Criteria & Thresholds (Outside the graph) */}
+      <GradingCriteriaSection
+        criteria={activeCriteria}
+        onSaveCriteria={handleSaveCriteria}
+        onResetDefault={handleResetCriteria}
+      />
 
-      {/* 3. Searchable / Filterable QC Test Table */}
+      {/* 3. Recharts Grade Distribution */}
+      <QualityDistributionChart tests={displayedTests} />
+
+      {/* 4. Searchable / Filterable Individual Bed Results Table */}
       <QualityTestTable
-        tests={tests}
+        tests={displayedTests}
         onSelectTest={(test) => setSelectedTest(test)}
       />
 
-      {/* 4. Test Creation Modal */}
+      {/* 5. Bed Test Creation Modal */}
       <CreateTestModal
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
@@ -151,7 +182,7 @@ export default function QualityControlPage() {
         onCreateTest={handleCreateTest}
       />
 
-      {/* 5. Comprehensive Test Details & Review Modal */}
+      {/* 6. Comprehensive Test Details & Review Modal */}
       <TestDetailsModal
         isOpen={!!selectedTest}
         onClose={() => setSelectedTest(null)}

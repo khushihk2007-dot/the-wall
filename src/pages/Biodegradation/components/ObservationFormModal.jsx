@@ -11,14 +11,17 @@ import {
   Camera, 
   Info, 
   AlertTriangle, 
-  Check 
+  Check,
+  Radio
 } from 'lucide-react';
 import { 
   PHYSICAL_APPEARANCES, 
   STRUCTURAL_INTEGRITIES 
 } from '../../../constants/mockBiodegradationData';
+import { useSensorData } from '../../../hooks/useSensorData';
 
 export function ObservationFormModal({ isOpen, onClose, sample, onSave }) {
+  const { data: sensorData, isConnected, lastFetchedAt } = useSensorData();
   const [formData, setFormData] = useState(() => {
     const initMass = sample?.initialDryMass || 450;
     const initDims = sample?.initialDimensions || { lengthMm: 300, widthMm: 150, thicknessMm: 35 };
@@ -290,11 +293,45 @@ export function ObservationFormModal({ isOpen, onClose, sample, onSave }) {
 
         {/* Section 4: Environmental Conditions (Optional) */}
         <div className="p-3.5 bg-sand-50/60 rounded-xl border border-sand-200 space-y-2">
-          <div className="flex items-center gap-1.5">
-            <CloudRain className="w-4 h-4 text-blue-600" />
-            <h4 className="text-xs font-bold uppercase tracking-wider text-sand-800">
-              E. Environmental Conditions (Optional where available)
-            </h4>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <CloudRain className="w-4 h-4 text-blue-600" />
+              <h4 className="text-xs font-bold uppercase tracking-wider text-sand-800">
+                E. Environmental Conditions (Optional where available)
+              </h4>
+            </div>
+            {isConnected && (
+              <button
+                type="button"
+                onClick={() => {
+                  const temp = sensorData?.dht2Valid && sensorData?.temperature2 != null 
+                    ? String(sensorData.temperature2) 
+                    : sensorData?.dht1Valid && sensorData?.temperature1 != null 
+                      ? String(sensorData.temperature1) 
+                      : formData.temperatureC;
+                  const hum = sensorData?.dht2Valid && sensorData?.humidity2 != null 
+                    ? String(sensorData.humidity2) 
+                    : sensorData?.dht1Valid && sensorData?.humidity1 != null 
+                      ? String(sensorData.humidity1) 
+                      : formData.relativeHumidityPct;
+                  const moist = sensorData?.soilValid && sensorData?.soilMoisturePercent != null 
+                    ? String(sensorData.soilMoisturePercent) 
+                    : formData.soilMoisturePct;
+
+                  setFormData((prev) => ({
+                    ...prev,
+                    temperatureC: temp,
+                    relativeHumidityPct: hum,
+                    soilMoisturePct: moist,
+                  }));
+                }}
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold rounded bg-forest-700 text-white hover:bg-forest-800 transition-colors"
+                title="Populate live environmental telemetry from connected ESP32"
+              >
+                <Radio className="w-3 h-3 animate-pulse" />
+                <span>Import Live ESP32 Telemetry</span>
+              </button>
+            )}
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

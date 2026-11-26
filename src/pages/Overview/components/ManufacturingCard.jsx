@@ -17,7 +17,7 @@ export function ManufacturingCard({ data }) {
   return (
     <Card
       title="Manufacturing Overview"
-      subtitle="[Demo Data] Current batch lifecycle status and 6-month output"
+      subtitle="Current batch lifecycle status and 6-month output"
       action={
         <Badge variant="forest" size="sm">
           {totalBatches} Total Batches

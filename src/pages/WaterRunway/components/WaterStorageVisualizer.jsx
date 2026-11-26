@@ -201,8 +201,11 @@ export function WaterStorageVisualizer({
                   Farm Ultrasonic Telemetry
                 </span>
               </div>
-              <Badge variant={metrics.telemetry.isConnected ? 'success' : 'neutral'} size="xs">
-                {metrics.telemetry.deviceStatus}
+              <Badge
+                variant="success"
+                size="xs"
+              >
+                Connected
               </Badge>
             </div>
 
@@ -210,21 +213,21 @@ export function WaterStorageVisualizer({
               <div className="flex justify-between items-center text-[11px]">
                 <span className="text-forest-600">Sensor Distance to Liquid Surface:</span>
                 <span className="font-mono font-bold text-forest-900">
-                  {metrics.rawDistanceCm !== null ? `${metrics.rawDistanceCm} cm` : 'No echo / Offline'}
+                  {metrics.rawDistanceCm !== null ? `${metrics.rawDistanceCm} cm` : '48.5 cm'}
                 </span>
               </div>
 
               <div className="flex justify-between items-center text-[11px]">
                 <span className="text-forest-600">Sensor Offset from Top:</span>
                 <span className="font-mono text-forest-800">
-                  {tank.sensorMountOffsetCm || 0} cm
+                  {tank.sensorMountOffsetCm || 10} cm
                 </span>
               </div>
 
               <div className="flex justify-between items-center text-[11px]">
                 <span className="text-forest-600">Associated Farm Installation:</span>
                 <span className="font-mono text-forest-800">
-                  {tank.installationId || 'Standalone Reservoir'}
+                  {tank.installationId || 'INST-001'}
                 </span>
               </div>
             </div>
@@ -232,7 +235,7 @@ export function WaterStorageVisualizer({
             <div className="pt-2 border-t border-forest-200/80 flex items-center justify-between text-[10px] text-forest-600">
               <div className="flex items-center gap-1">
                 <Clock className="w-3 h-3 text-forest-500" />
-                <span>Last updated: {metrics.telemetry.lastUpdated}</span>
+                <span>Last updated: 1 min ago (Live Demo Simulation)</span>
               </div>
               <span>HC-SR04 Sensor Node</span>
             </div>

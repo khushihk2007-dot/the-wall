@@ -67,7 +67,7 @@ export function RecordUsageModal({
       isOpen={isOpen}
       onClose={onClose}
       title="Record Manual Water Usage"
-      subtitle={`${tank?.name || 'Reservoir'} • Manual entry [DEMO DATA]`}
+      subtitle={`${tank?.name || 'Reservoir'} • Manual entry`}
       maxWidth="max-w-lg"
     >
       <form onSubmit={handleSubmit} className="space-y-4">

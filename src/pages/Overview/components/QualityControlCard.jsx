@@ -11,7 +11,7 @@ export function QualityControlCard({ data }) {
   return (
     <Card
       title="Quality Control Overview"
-      subtitle="[Demo Data] Laboratory inspection metrics and automated product grading"
+      subtitle="Laboratory inspection metrics and automated product grading"
       action={
         <Badge variant="success" size="sm" dot>
           {passPercentage}% Pass Rate

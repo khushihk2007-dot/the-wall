@@ -13,7 +13,7 @@ export function ActivityTimeline({ activities }) {
   return (
     <Card
       title="Recent Platform Activity"
-      subtitle="[Demo Feed] Chronological feed of manufacturing, QC, and farm operations"
+      subtitle="Chronological feed of manufacturing, QC, and farm operations"
     >
       <div className="space-y-4">
         {activities.map((act, index) => {

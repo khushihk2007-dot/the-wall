@@ -9,12 +9,19 @@ import { QRCodeModal } from './components/QRCodeModal';
 import { QRPrintLabel } from './components/QRPrintLabel';
 
 import { traceabilityService } from '../../services/traceabilityService';
+import { DataSourceFilter } from '../../components/common/DataSourceFilter';
+import { useDataSourceFilter } from '../../hooks/useDataSourceFilter';
 
 export default function QRTraceabilityPage() {
+  const { filterRecords } = useDataSourceFilter();
   const [records, setRecords] = useState(() => traceabilityService.getAllBatchesTraceability());
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [printRecord, setPrintRecord] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
+
+  const displayedRecords = React.useMemo(() => {
+    return filterRecords(records.map(r => ({ ...r, id: r.batchId })), 'batch');
+  }, [records, filterRecords]);
 
   useEffect(() => {
     let isMounted = true;
@@ -106,7 +113,8 @@ export default function QRTraceabilityPage() {
           </div>
         }
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <DataSourceFilter size="sm" />
             <Button
               variant="outline"
               size="sm"
@@ -122,7 +130,7 @@ export default function QRTraceabilityPage() {
 
       {/* 1. Searchable / Filterable Traceability Register Table */}
       <TraceabilityTable
-        records={records}
+        records={displayedRecords}
         onSelectRecord={(rec) => setSelectedRecord(rec)}
         onGenerateQr={handleGenerateQr}
       />
